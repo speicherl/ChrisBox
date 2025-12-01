@@ -26,7 +26,9 @@ The places for the feedback resistors and the shielding frame are shown in the p
 > [!TIP]
 > Things get easier if the resistors are soldered first because of the height of the components.
 > Also it can come handy to remove the cross in the middle of the shielding frame before soldering if some components have to be reached afterwards.
+
 Unfortunately, fhe frame and connected shielding plane (in the PCB) are good in heat distribution. Therefore it takes a while to heat the pads and solder the frame.
+
 > [!WARNING]  
 > When soldering, try to use as little flux as possible and/or clean the circuit board afterwards. Flux is slightly conductive and distorts the sensor values, which can result in saturation of the ADC inputs! 
 
