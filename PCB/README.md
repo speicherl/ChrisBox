@@ -3,11 +3,10 @@
 Welcome to the PCB folder of ChrisBox!
 The ChrisBox PCB is designed with KiCad. The Project files and generated Exports are found here.
 
-![Screenshot of a ChrisBox Assembly](/PCB/data/PCB_screenshot.png)
+![Screenshot of a ChrisBox Assembly](/data/ChrisBox_PCB_1_unsoldered.JPG)
 
 ## Content of the PCB folder
 
-- `./data` - pictures of the PCB and some for the schematic and silkscreen.
 - `./exports` - The `.step`-export of the ChrisBox PCB.
 - `./interactive bom` - The interactive HTML BOM (made with Interactive Html Bom). It is useful for handsoldering or just looking up which component has to go where.
 - `./jlcpcb` - Output data from the KiCAD JLCPCB tools. This data can be used for ordering a PCB with components. Always re-check the data yourself!
