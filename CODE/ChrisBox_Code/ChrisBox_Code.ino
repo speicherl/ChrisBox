@@ -2,8 +2,7 @@
 // Include Libraries
 #include <esp_now.h>                  // for ESP NOW communication
 #include <WiFi.h>                     // for ESP NOW communication
-#include "Protocentral_ADS1220_mod.h" // for ADS1220 communication
-#include <SPI.h>                      // for ADS1220 communication
+#include <ADS1220_WE.h>                      // for ADS1220 communication
 
 //-------------------------------------------------------------------------------------------------------------------
 // Define Pins
@@ -14,7 +13,6 @@ int DRDY_Pins[] = {8, 9, 10, 11};
 #define SCK     7   // SPI Clock
 #define MISO    6   // SPI MISO
 #define MOSI    5   // SPI MOSI
-#define SS      12  // Chip Select for ADC1, usable for SPI.begin(); -> for library. Later only the CS_Pins-array is used for CS pins.
 
 // LEDs
 #define LED1 33   // LED Green    -> status indicator if program is working
@@ -61,8 +59,14 @@ bool uartConnected;           // marker wheter UART2 is connected or not -> show
 bool espNowConnected;         // marker whether ESP NOW is connected -> shown by blue LED4
 bool batteryAlert;            // marker if the voltage is too low
 
-Protocentral_ADS1220_mod adc[4];  // Four ADCs...
-int32_t adc_data[4];          // ... and a place to store their readings
+ADS1220_WE adc[NUM_ADCS] = {
+  ADS1220_WE(&SPI, CS_Pins[0], DRDY_Pins[0], MOSI, MISO, SCK, true, false),
+  ADS1220_WE(&SPI, CS_Pins[1], DRDY_Pins[1], MOSI, MISO, SCK, true, false),
+  ADS1220_WE(&SPI, CS_Pins[2], DRDY_Pins[2], MOSI, MISO, SCK, true, false),
+  ADS1220_WE(&SPI, CS_Pins[3], DRDY_Pins[3], MOSI, MISO, SCK, true, false)
+};  // Four ADCs...
+// int32_t adc_data[4];          // ... and a place to store their readings
+float adc_data[4];          // ... and a place to store their readings
 
 int displayPage;              // display page as int. 1 is the first page, 7 the last one.
 
@@ -337,23 +341,24 @@ void refreshLEDs() {
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// Start of the four ADCs
-void setupADCs() {
-
-  // Start SPI connection to ADCs
-  Serial.println("Start SPI");
-  SPI.begin(SCK, MISO, MOSI, SS);
-  Serial.println("Configured SPI");
-
-  // Setup CS pins (output and HIGH)
-  for (int i = 0; i < 4; i++) {
-    pinMode(CS_Pins[i], OUTPUT);
-    digitalWrite(CS_Pins[i], HIGH);
-
-    // Fill array with ADS1220-objects
-    adc[i] = Protocentral_ADS1220_mod();
+void setupADC(int nr) {
+  if(!adc[nr].init()){
+    Serial.println("ADC is not connected!");
+    while(1);
   }
 
+  adc[nr].bypassPGA(false);
+  adc[nr].setDataRate(ADS1220_DR_LVL_6);
+  adc[nr].setConversionMode(ADS1220_SINGLE_SHOT);
+  // Externe Referenz (REFP0/REFN0)
+  adc[nr].setVRefSource(ADS1220_VREF_REFP0_REFN0);
+  adc[nr].setRefp0Refn0AsVrefAndCalibrate();
+  // adc[nr].setVRefValue_V(VREFADC);
+  Serial.println("VREF Set");
+  adc[nr].setCompareChannels(ADS1220_MUX_0_AVSS); 
+}
+
+void setupADCs(){
   for (int i = 0; i < 4; i++) {
     // setup for each ADC
     setupADC(i);
@@ -361,30 +366,12 @@ void setupADCs() {
   }  
 }
 
-// Setup ADS1220
-void setupADC(int nr) {
-  adc[nr].begin(CS_Pins[nr],DRDY_Pins[nr]);
-  // Set data rate of ADC to 1kHz
-  adc[nr].set_data_rate(DR_1000SPS);
-  // Set internal gain in ADC to 1
-  adc[nr].set_pga_gain(PGA_GAIN_1);
-  // Set Single shot mode
-  adc[nr].set_conv_mode_single_shot();
-  // Set reference voltage to VREF0
-  adc[nr].set_VREF(VREF_REFP0);
-  // Set Mux to Differenital CH0-CH1
-  adc[nr].select_mux_channels(MUX_AIN0_AIN1);   // Measurement mode. Set up once, the mux channel will not be changed during runtime.
-}
-
-// Readout all four ADCs simultaneously -> Faster than waiting for each ADC after another.
+//-------------------------------------------------------------------------------------------------------------------
 void readoutADCs() {
-  // Start ADC measurement
-  for(int i = 0; i < 4; i++){    
-    adc[i].Start_Conv();
-  }
   // read ADC data
   for(int i = 0; i < 4; i++){    
-    adc_data[i] = adc[i].Read_WaitForData();
+    adc_data[i] = adc[i].getVoltage_mV();
+    // Serial.flush();
   }
 }
 
