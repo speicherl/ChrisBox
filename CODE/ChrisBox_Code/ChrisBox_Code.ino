@@ -34,6 +34,7 @@ int DRDY_Pins[] = {8, 9, 10, 11};
 
 uint8_t broadcastAddress1[] = {0x08, 0x3a, 0xf2, 0xb9, 0x02, 0x40};   // REPLACE WITH YOUR ESP RECEIVER'S MAC ADDRESS
 
+bool display_charge = true;    // Decide if the charge value shall be displayed (true) or the voltage value (false) on the Nextion display
 bool esp_now_connection = false;  // Decide if ESPNOW connection shall be used or not (required for ESP to ESP wireless connection)
 bool uart2_connection = true;     // Decide if UART2 shall be used (required for Nextion display)
 bool voltage_generation = true;   // Decide if the 5V voltage generation should work (required for Nextion display)
@@ -41,7 +42,6 @@ bool voltage_generation = true;   // Decide if the 5V voltage generation should 
 #define UART2BAUD 115200          // Define the baud rate for UART2 communication
 
 #define CF 360                    // Feedback capacitance [pF] (Q = C * U, Charge = CF * Voltage)
-double maxCharge = 1.8 * CF;      // max voltage (plus or minus) * feedback capacitance.
 
 #define thresVCC 3.2              // Threshold for VCC, where the battery indicator should start blinking (ESP 32 recommended minimum voltage is 3.0V)
   
@@ -55,6 +55,12 @@ int lastBlinkBattery;         // time of last blink for Battery Warning LED2
 bool uartConnected;           // marker wheter UART2 is connected or not -> shown by blue LED3
 bool espNowConnected;         // marker whether ESP NOW is connected -> shown by blue LED4
 bool batteryAlert;            // marker if the voltage is too low
+float vRef_mV;             // measured VRef in millivolt
+float maxVoltagePlus;        // maximum voltage for positive charge calculation
+float maxChargePlus;         // maximum charge for positive charge calculation
+float maxVoltageMinus;       // maximum voltage for negative charge calculation
+float maxChargeMinus;        // maximum charge for negative charge calculation
+
 
 ADS1220_WE adc[NUM_ADCS] = {
   ADS1220_WE(&SPI, CS_Pins[0], DRDY_Pins[0], MOSI, MISO, SCK, true, false),
@@ -64,7 +70,7 @@ ADS1220_WE adc[NUM_ADCS] = {
 };  // Four ADCs...
 float adc_data[4];          // ... and a place to store their readings
 
-int displayPage;              // display page as int. 1 is the first page, 7 the last one.
+int displayPage = 0;              // display page as int. 1 is the first page, 7 the last one.
 
 // Struct, in which all measurement data is stored
 typedef struct four_ch_struct {
@@ -175,7 +181,13 @@ void setup() {
   
   setupADCs();
   
-  // Initialisieren von Variablen (für LEDs)
+  // Initialisieren von Variablen
+  vRef_mV = getVRef();                           // VRef in millivolt
+  maxVoltagePlus = 3.3 - (vRef_mV / 1000.0);   // max voltage for display plus 
+  maxChargePlus = maxVoltagePlus * CF;         // max voltage plus * feedback capacitance.
+  maxVoltageMinus = 0 - (vRef_mV / 1000.0);      // max voltage for display minus
+  maxChargeMinus = maxVoltageMinus * CF;       // max voltage minus * feedback capacitance.
+
   lastBlink = millis();
   lastBlinkBattery = millis();
 
@@ -189,18 +201,33 @@ void loop() {
   refreshLEDs();        // update LEDs for blinking and status etc.
   readoutADCs();        // read ADC data from all four ADCs
 
-  data_struct.vcc = getVCC();                           // read and store VCC (internal ADC)
-  data_struct.vref = getVRef();                         // read and store VRef (internal ADC)
-  data_struct.ferro1 = convertToPicoC(adc_data[0]);    // compute charge of Ferro 1 (ADS1220)
-  data_struct.ferro2 = convertToPicoC(adc_data[1]);    // compute charge of Ferro 2(ADS1220)
-  data_struct.ferro3 = convertToPicoC(adc_data[2]);    // compute charge of Ferro 3 (ADS1220)
-  data_struct.ferro4 = convertToPicoC(adc_data[3]);    // compute charge of Ferro 4 (ADS1220)
+  // Debug
+  adc_data[0] = 3300;
+  adc_data[1] = 0;
+  adc_data[2] = 2000;
+  adc_data[3] = 1000;
 
-  // data_struct.ferro1 = adc_data[0];    // compute voltage of Ferro 1 (ADS1220)
-  // data_struct.ferro2 = adc_data[1];    // compute voltage of Ferro 2(ADS1220)
-  // data_struct.ferro3 = adc_data[2];    // compute voltage of Ferro 3 (ADS1220)
-  // data_struct.ferro4 = adc_data[3];    // compute voltage of Ferro 4 (ADS1220)
 
+  if(displayPage == 7){
+    data_struct.vcc = getVCC();                           // read and store VCC (internal ADC)
+    data_struct.vref = getVRef();                         // read and store VRef (internal ADC)
+  }  
+  if(display_charge) {
+    // Convert ADC voltage readings to charge values
+    data_struct.ferro1 = convertToPicoC(adc_data[0]);    // compute charge of Ferro 1 (ADS1220)
+    data_struct.ferro2 = convertToPicoC(adc_data[1]);    // compute charge of Ferro 2(ADS1220)
+    data_struct.ferro3 = convertToPicoC(adc_data[2]);    // compute charge of Ferro 3 (ADS1220)
+    data_struct.ferro4 = convertToPicoC(adc_data[3]);    // compute charge of Ferro 4 (ADS1220)
+  } else {
+    // Store ADC voltage readings directly
+    data_struct.ferro1 = adc_data[0];    // voltage of Ferro 1 (ADS1220)
+    data_struct.ferro2 = adc_data[1];    // voltage of Ferro 2(ADS1220)
+    data_struct.ferro3 = adc_data[2];    // voltage of Ferro 3 (ADS1220)
+    data_struct.ferro4 = adc_data[3];    // voltage of Ferro 4 (ADS1220)
+  }
+
+
+  // --------------------------------------------------------------------
   // Serial print the measured values
   // -> Serial print should work with BetterSerialPlotter on a PC
   // VCC und VRef
@@ -265,7 +292,6 @@ double getVCC() {
 // Measures the VRef voltage from the read of VRef at ADC1
 double getVRef() {
   // Do all this only if the VRef is shown on the display, otherwise this just reduces performance.
-  if (displayPage == 7) {
     adc[0].setCompareChannels(ADS1220_MUX_1_AVSS);
     // adc[0].start(); // ADC Ferro
 
@@ -275,15 +301,19 @@ double getVRef() {
     adc[0].setCompareChannels(ADS1220_MUX_0_AVSS);
 
     return vref_double;
-  } else {
-    return 0;
   }
-  
-}
+
 
 // Converts the given voltage (millivolt) to charge (mC), with given feedback capacitance CF
+// Voltage Jumps: max. +/- 1.5V -> max. +/- 540 pC with CF = 360pF
 float convertToPicoC(double voltage_mV) {
-  return (float) CF * voltage_mV / 1000; //Conversion from pF and mV to pC 
+  float charge_pC = CF * ((voltage_mV - vRef_mV) / 1000); //Conversion from pF and mV to pC 
+  if(charge_pC > maxChargePlus) {
+    charge_pC = maxChargePlus;
+  } else if(charge_pC < maxChargeMinus) {
+    charge_pC = maxChargeMinus;
+  }
+  return charge_pC;
 }
 
 // Inverts the digital output (e.g. LED) of a pin
@@ -426,12 +456,19 @@ void sendDataToDisplay() {
 // Conversion to "display graph values"
 // -max to max mapped onto 0 to 255
 // Charge in pC as input value
-// Voltage: max. +/- 1.7V -> max. +/- 612 pC with CF = 360pF
 int convertToDisplay(double value) {
-  // map value relative to maxCharge to the 128 possible values in positive or negative direction
-  double ret = value/maxCharge * 128 + 128;
-  //Serial.print("Display Value: ");
-  //Serial.print(ret);
+  float ret = 128;
+  if(display_charge) {
+    // map value relative to maxCharge to the 128 possible values in positive or negative direction
+    if(value > 0) {
+      ret = value/maxChargePlus * 128 + 128;
+    } else if(value < 0) {
+      ret = 128 - (value/maxChargeMinus * 128);
+    }
+  }
+  else {
+    ret = value/(vRef_mV/1000.0) * 128 + 128;
+  }
   return (int) ret;
 }
 
