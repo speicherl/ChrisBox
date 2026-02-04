@@ -1,6 +1,6 @@
 /*
   ChrisBox_Code.ino - Code for the ChrisBox - a multi-channel ferroelectret measurement device
-  @author Dominik Werner and Luis Gross
+  @authors Dominik Werner and Luis Gross
   @date   2026-02-04
   @version 1.1
   at MUST-TU Darmstadt, Germany
@@ -173,7 +173,7 @@ void setup() {
     Serial.println(UART2BAUD);
 
     displaySerial.print(endChar);                           // Send end Char to start a clean conversation
-    displaySerial.print("page All_Channels_A" + endChar);   // Send page command to start on the first page.
+    displaySerial.print("page Splash" + endChar);   // Send page command to start on the first page.
     displayPage = 1;
   }  
 
