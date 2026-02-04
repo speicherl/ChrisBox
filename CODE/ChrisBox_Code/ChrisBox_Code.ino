@@ -1,3 +1,10 @@
+/*
+  ChrisBox_Code.ino - Code for the ChrisBox - a multi-channel ferroelectret measurement device
+  @author Dominik Werner and Luis Gross
+  @date   2026-02-04
+  @version 1.1
+  at MUST-TU Darmstadt, Germany
+*/
 //-------------------------------------------------------------------------------------------------------------------
 // Include Libraries
 #include <esp_now.h>                  // for ESP NOW communication
@@ -55,11 +62,11 @@ int lastBlinkBattery;         // time of last blink for Battery Warning LED2
 bool uartConnected;           // marker wheter UART2 is connected or not -> shown by blue LED3
 bool espNowConnected;         // marker whether ESP NOW is connected -> shown by blue LED4
 bool batteryAlert;            // marker if the voltage is too low
-float vRef_mV;             // measured VRef in millivolt
-float maxVoltagePlus;        // maximum voltage for positive charge calculation
-float maxChargePlus;         // maximum charge for positive charge calculation
-float maxVoltageMinus;       // maximum voltage for negative charge calculation
-float maxChargeMinus;        // maximum charge for negative charge calculation
+double vRef_mV;             // measured VRef in millivolt
+double maxVoltagePlus;        // maximum voltage for positive charge calculation
+double maxChargePlus;         // maximum charge for positive charge calculation
+double maxVoltageMinus;       // maximum voltage for negative charge calculation
+double maxChargeMinus;        // maximum charge for negative charge calculation
 
 
 ADS1220_WE adc[NUM_ADCS] = {
@@ -182,10 +189,10 @@ void setup() {
   setupADCs();
   
   // Initialisieren von Variablen
-  vRef_mV = getVRef();                           // VRef in millivolt
+  vRef_mV = getVRef()*1000;                    // VRef in millivolt
   maxVoltagePlus = 3.3 - (vRef_mV / 1000.0);   // max voltage for display plus 
   maxChargePlus = maxVoltagePlus * CF;         // max voltage plus * feedback capacitance.
-  maxVoltageMinus = 0 - (vRef_mV / 1000.0);      // max voltage for display minus
+  maxVoltageMinus = 0 - (vRef_mV / 1000.0);    // max voltage for display minus
   maxChargeMinus = maxVoltageMinus * CF;       // max voltage minus * feedback capacitance.
 
   lastBlink = millis();
@@ -201,11 +208,11 @@ void loop() {
   refreshLEDs();        // update LEDs for blinking and status etc.
   readoutADCs();        // read ADC data from all four ADCs
 
-  // Debug
-  adc_data[0] = 3300;
-  adc_data[1] = 0;
-  adc_data[2] = 2000;
-  adc_data[3] = 1000;
+  // // Debug
+  // adc_data[0] = 3300;
+  // adc_data[1] = 0;
+  // adc_data[2] = 2000;
+  // adc_data[3] = 1000;
 
 
   if(displayPage == 7){
@@ -469,6 +476,8 @@ int convertToDisplay(double value) {
   else {
     ret = value/(vRef_mV/1000.0) * 128 + 128;
   }
+  if(ret > 255) ret = 255;
+  if(ret < 0) ret = 0;
   return (int) ret;
 }
 
