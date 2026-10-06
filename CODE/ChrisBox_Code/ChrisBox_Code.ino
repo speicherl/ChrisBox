@@ -30,7 +30,7 @@ int DRDY_Pins[] = {8, 9, 10, 11};
 #define VCC 1       // VCC, measured with internal ADC of ESP32
 
 // UART2 Pins
-#define UART2TXD 4  
+#define UART2TXD 4
 #define UART2RXD 37
 
 // 5V generation enable
@@ -51,14 +51,14 @@ bool voltage_generation = true;   // Decide if the 5V voltage generation should 
 #define CF 360                    // Feedback capacitance [pF] (Q = C * U, Charge = CF * Voltage)
 
 #define thresVCC 3.2              // Threshold for VCC, where the battery indicator should start blinking (ESP 32 recommended minimum voltage is 3.0V)
-  
+
 #define VREFADC  3.28         // ADS1220, Reference voltage
 #define NUM_ADCS 4
 //-------------------------------------------------------------------------------------------------------------------
 // Variables
 
-int lastBlink;                // time of last blink for LED1 blinking
-int lastBlinkBattery;         // time of last blink for Battery Warning LED2
+uint32_t lastBlink;                // time of last blink for LED1 blinking
+uint32_t lastBlinkBattery;         // time of last blink for Battery Warning LED2
 bool uartConnected;           // marker wheter UART2 is connected or not -> shown by blue LED3
 bool espNowConnected;         // marker whether ESP NOW is connected -> shown by blue LED4
 bool batteryAlert;            // marker if the voltage is too low
@@ -133,27 +133,27 @@ void setup() {
   } else {
     digitalWrite(EN_5V, LOW);
   }
-  
+
   // -------------------------------------------------------
   // ESP NOW Start
   espNowConnected = false;
 
   if (esp_now_connection) {
     WiFi.mode(WIFI_STA);
-  
+
     if (esp_now_init() != ESP_OK) {
       Serial.println("Error initializing ESP-NOW");
       espNowConnected = false;
     } else {
       espNowConnected = true;
     }
-    
+
     // esp_now_register_send_cb(OnDataSent); //Produces Errors
-    
+
     // register peer
-    peerInfo.channel = 0;  
+    peerInfo.channel = 0;
     peerInfo.encrypt = false;
-    // register first peer  
+    // register first peer
     memcpy(peerInfo.peer_addr, broadcastAddress1, 6);
     if (esp_now_add_peer(&peerInfo) != ESP_OK){
       Serial.println("Failed to add peer");
@@ -175,7 +175,7 @@ void setup() {
     displaySerial.print(endChar);                           // Send end Char to start a clean conversation
     displaySerial.print("page Splash" + endChar);   // Send page command to start on the first page.
     displayPage = 1;
-  }  
+  }
 
   // -------------------------------------------------------
 
@@ -185,12 +185,12 @@ void setup() {
   pinMode(LED4, OUTPUT);        // ...  (ESP NOW connected)
 
   startupLEDshow();             // Little lightshow at the start, because it is cool.
-  
+
   setupADCs();
-  
+
   // Initialisieren von Variablen
   vRef_mV = getVRef()*1000;                    // VRef in millivolt
-  maxVoltagePlus = 3.3 - (vRef_mV / 1000.0);   // max voltage for display plus 
+  maxVoltagePlus = 3.3 - (vRef_mV / 1000.0);   // max voltage for display plus
   maxChargePlus = maxVoltagePlus * CF;         // max voltage plus * feedback capacitance.
   maxVoltageMinus = 0 - (vRef_mV / 1000.0);    // max voltage for display minus
   maxChargeMinus = maxVoltageMinus * CF;       // max voltage minus * feedback capacitance.
@@ -218,7 +218,7 @@ void loop() {
   if(displayPage == 7){
     data_struct.vcc = getVCC();                           // read and store VCC (internal ADC)
     data_struct.vref = getVRef();                         // read and store VRef (internal ADC)
-  }  
+  }
   if(display_charge) {
     // Convert ADC voltage readings to charge values
     data_struct.ferro1 = convertToPicoC(adc_data[0]);    // compute charge of Ferro 1 (ADS1220)
@@ -252,7 +252,7 @@ void loop() {
   Serial.print(" ");
   Serial.print(data_struct.ferro4, 6);
   Serial.print(" ");
-  
+
   // --------------------------------------------------------------------
   // End print with new line
   Serial.println();
@@ -260,8 +260,8 @@ void loop() {
   // --------------------------------------------------------------------
   // Send data via ESPNOW
   if (esp_now_connection) {
-    esp_err_t result = esp_now_send(0, (uint8_t *) &data_struct, sizeof(four_ch_struct));
-    
+    esp_err_t result = esp_now_send(nullptr, (uint8_t *) &data_struct, sizeof(four_ch_struct));
+
     if (result == ESP_OK) {
       Serial.println("Sent with success");
       espNowConnected = true;
@@ -314,7 +314,7 @@ double getVRef() {
 // Converts the given voltage (millivolt) to charge (mC), with given feedback capacitance CF
 // Voltage Jumps: max. +/- 1.5V -> max. +/- 540 pC with CF = 360pF
 float convertToPicoC(double voltage_mV) {
-  float charge_pC = CF * ((voltage_mV - vRef_mV) / 1000); //Conversion from pF and mV to pC 
+  float charge_pC = CF * ((voltage_mV - vRef_mV) / 1000); //Conversion from pF and mV to pC
   if(charge_pC > maxChargePlus) {
     charge_pC = maxChargePlus;
   } else if(charge_pC < maxChargeMinus) {
@@ -340,7 +340,7 @@ void refreshLEDs() {
   if (uartConnected) {
     if(!digitalRead(LED3)) {
       digitalWrite(LED3, HIGH);
-    }    
+    }
   } else {
     if(digitalRead(LED3)) {
       digitalWrite(LED3, LOW);
@@ -351,7 +351,7 @@ void refreshLEDs() {
   if (espNowConnected) {
     if(!digitalRead(LED4)) {
       digitalWrite(LED4, HIGH);
-    }    
+    }
   } else {
     if(digitalRead(LED4)) {
       digitalWrite(LED4, LOW);
@@ -384,24 +384,24 @@ void setupADC(int nr) {
   Serial.print("VREF Set to: ");// Debug: Gives the measured internal Vref for ADC[i]
   Serial.println(vref,2);
   adc[nr].setNonBlockingMode(false);
-  adc[nr].setCompareChannels(ADS1220_MUX_0_AVSS); 
+  adc[nr].setCompareChannels(ADS1220_MUX_0_AVSS);
 }
 
 void setupADCs(){
   for (int i = 0; i < 4; i++) {
     // setup for each ADC
     setupADC(i);
-    Serial.println("ADC " + String(i) + " is set up.");    
-  }  
+    Serial.println("ADC " + String(i) + " is set up.");
+  }
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 void readoutADCs() {
-  // for(int i = 0; i < NUM_ADCS; i++){    
+  // for(int i = 0; i < NUM_ADCS; i++){
   //   adc[i].start(); // ADC Ferro
   // }
-  
-  // for(int i = 0; i < NUM_ADCS; i++){    
+
+  // for(int i = 0; i < NUM_ADCS; i++){
   //   while(digitalRead(DRDY_Pins[i])){
   //     // do nothing
   //   }
